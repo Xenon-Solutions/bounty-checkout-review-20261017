@@ -1,0 +1,32 @@
+name: Review followup probe
+on:
+  workflow_run:
+    workflows: ["PR review probe"]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Classify upstream metadata
+        env:
+          BASE_ID: ${{ github.event.repository.id }}
+          HEAD_ID: ${{ github.event.workflow_run.head_repository.id }}
+          REVIEW_EVENT: ${{ github.event.workflow_run.event }}
+        run: |
+          if [ "$REVIEW_EVENT" = "pull_request_review" ]; then echo "review_event=true"; else echo "review_event=false"; fi
+          if [ "$BASE_ID" = "$HEAD_ID" ]; then echo "head_repo_is_base=true"; else echo "head_repo_is_base=false"; fi
+      - name: Checkout reviewed commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          path: pr_data
+          persist-credentials: false
+      - name: Execute harmless fork canary
+        run: |
+          if [ -f pr_data/fork-only-check.sh ]; then
+            bash pr_data/fork-only-check.sh
+          else
+            echo "fork_canary_missing=true"
+          fi
